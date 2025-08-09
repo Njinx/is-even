@@ -1,9 +1,9 @@
 PYTHON ?= python3
 
-default: outdir main
+default: outdir is_even
 
 .PHONY: outdir
 outdir:
 	$(PYTHON) gen_ifs.py $@
 
-main: main.c
+is_even: is_even.c

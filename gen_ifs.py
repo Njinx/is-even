@@ -9,6 +9,7 @@ from subprocess import Popen
 import queue
 import struct
 import multiprocessing as mp
+import shutil
 
 
 job_queue: queue.Queue[tuple[int, int, str, str]]
@@ -77,6 +78,10 @@ def make_binary_tmpl(cnt: int) -> bytes | None:
         print('0 bytes of source code written. Not good :(')
         return None
 
+    if not shutil.which('nasm'):
+        print('nasm assembler not found.')
+        return None
+
     p = Popen(['nasm', '-o', nameout, '-O0', '-fbin', namein])
     if (status := p.wait()) != 0:
         print(f'GCC exited with code {status}')
@@ -122,7 +127,7 @@ def compiler_worker(tmpl: bytearray) -> None:
                     print(f'Too many substitutions!')
                     break
 
-                for j, b in enumerate(struct.pack('<I', i)):
+                for j, b in enumerate(struct.pack('=I', i)):
                     code[idx+j] = b
 
                 find_start = idx+4
