@@ -33,8 +33,10 @@ Instead of interpreting the number at runtime, **is-even** pre-compiles **2<sup>
 
 ### 💻 Requirements
 
+- Linux (cross-platform support coming soon)
 - Python >= 3.8
-- C compilers
+- C compiler
+- `make`
 
 ### 🦾 Compiling
 
