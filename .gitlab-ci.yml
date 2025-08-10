@@ -32,6 +32,7 @@ test-job:   # This job runs in the test stage.
   script:
     - echo "Running unit tests..."
     - echo "Code coverage is 100%"
+  coverage: '/Code coverage is ([0-9]{1,3}%)/'
 
 deploy-job:      # This job runs in the deploy stage.
   stage: deploy  # It only runs when *both* jobs in the test stage complete successfully.
