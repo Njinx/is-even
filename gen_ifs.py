@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import typing as t
 import math
 import os
 import sys
@@ -14,19 +15,11 @@ import shutil
 
 job_queue: queue.Queue[tuple[int, int, str, str]]
 
-
-def gen_if_chain(cnt: int) -> str:
-    stmts: list[str] = []
-    for i in range(cnt):
-        stmts.append(f'cmp dword edi, 0xdeadbeef\n\t{"je .even" if i % 2 == 0 else "je .odd"}')
-
-    return '\n\t'.join(stmts)
-
-
-def gen_asm(cnt: int) -> str:
-    return f'''BITS 64
-is_even_chunk:
-\t{gen_if_chain(cnt)}
+ASM_BEGIN = f'''\
+BITS 64
+is_even:
+'''.encode()
+ASM_END = f'''\
 \tmov eax, 2
 \tret
 .even:
@@ -35,7 +28,23 @@ is_even_chunk:
 .odd:
 \tmov eax, 0
 \tret
-'''
+'''.encode()
+
+
+def gen_if_chain(wfd: int, cnt: int) -> None:
+    for i in range(cnt):
+        if i % 2 == 0:
+            jmp = b'\tje .even\n'
+        else:
+            jmp = b'\tje .odd\n'
+        stmt = b'\tcmp dword edi, 0xdeadbeef\n'
+        os.write(wfd, stmt + jmp)
+
+
+def gen_asm(wfd: int, cnt: int) -> None:
+    os.write(wfd, ASM_BEGIN)
+    gen_if_chain(wfd, cnt)
+    os.write(wfd, ASM_END)
 
 
 def gen_names(chunk: int) -> tuple[str, str]:
@@ -49,11 +58,14 @@ def gen_names(chunk: int) -> tuple[str, str]:
     return hpath, f'{chunk:06x}'
 
 
-def job_worker(out_base: str) -> None:
+def producer_thread(chunk_size: int, out_base: str) -> None:
     try:
-        chunks = math.floor(2**32 / 100_000)
+        chunks_dec = 2**32 / chunk_size
+        chunks = math.floor(chunks_dec)
         start = 0
-        end = 100_000
+        end = chunk_size
+
+        print(f'Producing {math.ceil(chunks_dec)} chunks. This may take a while...', end='', flush=True)
 
         def queue_chunk_job(chunk: int) -> None:
             dir_name, file_name = gen_names(chunk)
@@ -64,9 +76,9 @@ def job_worker(out_base: str) -> None:
             queue_chunk_job(i)
             start = end
             if i < chunks-1:
-                end += 100_000
+                end += chunk_size
             else:
-                end += 2**32 % 100_000
+                end += 2**32 % chunk_size
 
         queue_chunk_job(i+1)
     except KeyboardInterrupt:
@@ -77,9 +89,7 @@ def make_binary_tmpl(cnt: int) -> bytes | None:
     fdin, namein = tempfile.mkstemp(text=True)
     fdout, nameout = tempfile.mkstemp(text=True)
 
-    if os.write(fdin, gen_asm(cnt).encode()) == 0:
-        print('0 bytes of source code written. Not good :(')
-        return None
+    gen_asm(fdin, cnt)
 
     if not shutil.which('nasm'):
         print('nasm assembler not found.')
@@ -99,8 +109,16 @@ def make_binary_tmpl(cnt: int) -> bytes | None:
 
     return bytearray(tmpl)
 
-def compiler_worker(tmpl: bytearray) -> None:
+def consumer_thread(chunk_size: int, tmpl: bytearray) -> None:
     last_dir: str | None = None
+    done_cnt = 0
+
+    def inc_done_cnt() -> None:
+        nonlocal done_cnt
+        done_cnt += 1
+        if done_cnt % 100 == 0:
+            print('.', end='', flush=True)
+
     while True:
         try:
             try:
@@ -110,15 +128,14 @@ def compiler_worker(tmpl: bytearray) -> None:
 
             out_path = os.path.join(out_dir, out_file)
             if os.path.exists(out_path):
+                inc_done_cnt()
                 continue
-
-            print('.', end='', flush=True)
 
             if out_dir != last_dir:
                 Path(out_dir).mkdir(parents=True, exist_ok=True)
                 last_dir = out_dir
 
-            if end - start == 100_000:
+            if end - start == chunk_size:
                 code = tmpl.copy()
             else:
                 code = make_binary_tmpl(end - start)
@@ -128,7 +145,7 @@ def compiler_worker(tmpl: bytearray) -> None:
             for i in range(start, end):
                 if (idx := code.find(b'\xef\xbe\xad\xde', find_start)) == -1:
                     print(f'Too many substitutions!')
-                    break
+                    return
 
                 for j, b in enumerate(struct.pack('=I', i)):
                     code[idx+j] = b
@@ -141,28 +158,52 @@ def compiler_worker(tmpl: bytearray) -> None:
 
             with open(out_path, 'w+b') as fp:
                 fp.write(code)
+
+            inc_done_cnt()
         except KeyboardInterrupt:
             break
 
 
+def usage_die() -> None:
+    print(f'Usage: {sys.argv[0]} CHUNK_SIZE OUT_DIR')
+    sys.exit(1)
+
+
+def clamp(n: int, smallest: int, largest: int) -> int:
+    if n < smallest:
+        return smallest
+    if n > largest:
+        return largest
+    return n
+
+
 def main() -> None:
-    outdir = sys.argv[1]
+    if len(sys.argv) != 3:
+        usage_die()
+
+    try:
+        chunk_size = int(sys.argv[1])
+    except ValueError:
+        usage_die()
+
+    outdir = sys.argv[2]
     Path(outdir).mkdir(exist_ok=True)
 
-    tmpl = make_binary_tmpl(100_000)
+    tmpl = make_binary_tmpl(chunk_size)
 
     global job_queue
     job_queue = mp.Queue(512)
 
-    jobp = mp.Process(target=job_worker, args=(outdir,))
+    jobp = mp.Process(target=producer_thread, args=(chunk_size,outdir,))
     jobp.start()
 
     while job_queue.empty():
         pass
 
+    nproc = clamp(mp.cpu_count(), 1, 8) # consumer is IO-bound. Too many threads will likely hurt performance
     processes: list[mp.Process] = []
-    for _ in range(16):
-        p = mp.Process(target=compiler_worker, args=(tmpl,))
+    for _ in range(nproc):
+        p = mp.Process(target=consumer_thread, args=(chunk_size,tmpl,))
         processes.append(p)
         p.start()
 
@@ -170,4 +211,7 @@ def main() -> None:
     jobp.join()
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

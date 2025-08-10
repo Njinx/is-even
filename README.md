@@ -36,6 +36,7 @@ Instead of interpreting the number at runtime, **is-even** pre-compiles **2<sup>
 - Linux (cross-platform support coming soon)
 - Python >= 3.8
 - C compiler
+- `nasm`
 - `make`
 
 ### 🦾 Compiling

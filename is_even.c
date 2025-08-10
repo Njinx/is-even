@@ -31,7 +31,7 @@ void *producer_thread(void *arg)
     char *assets_base = (char *)arg;
     unsigned int i;
 
-    for (i = 0; i <= UINT_MAX / 100000; ++i) {
+    for (i = 0; i <= UINT_MAX / CHUNK_SIZE; ++i) {
         snprintf(fpath, 64, "%s/%02x/%02x/%02x/%06x", assets_base, (i>>24) & 0xFF, (i>>16) & 0xFF, (i>>8) & 0xFF, i);
         queue_put_item(queue, fpath);
     }
