@@ -13,6 +13,6 @@ int queue_create(size_t maxsize, queue_t **q);
 void queue_delete(queue_t *q);
 char *queue_get_item(queue_t *q);
 void queue_put_item(queue_t *q, char *item);
-char *queue_free_item(char *item);
+void queue_free_item(char *item);
 
 #endif

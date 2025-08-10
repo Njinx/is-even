@@ -1,10 +1,16 @@
 PYTHON ?= python3
+ASSETS_DIR ?= assets
 
-default: outdir is_even
+CFLAGS := -Wall -Wextra -Wundef -Wshadow -Wpointer-arith -Wcast-align \
+	-Wstrict-overflow=5 -Wwrite-strings -Waggregate-return -Wcast-qual \
+	-Wswitch-enum -Wunreachable-code -Wno-unused-parameter -pthread \
+	-D_DEFAULT_ASSETS_PATH="\"$(ASSETS_DIR)\""
 
-.PHONY: outdir
-outdir:
-	$(PYTHON) gen_ifs.py $@
+default: assets is_even
 
-is_even: is_even.c queue.c queue.h
-	$(CC) -o $@ -g -pthread is_even.c queue.c
+.PHONY: assets
+assets:
+	$(PYTHON) gen_ifs.py $(ASSETS_DIR)
+
+is_even: is_even.c queue.c queue.h config.h
+	$(CC) -o $@ $(CFLAGS) is_even.c queue.c

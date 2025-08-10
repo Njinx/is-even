@@ -1,5 +1,5 @@
 .idea/
 .vscode/
-outdir/
+assets/
 is_even
 .gdb_history

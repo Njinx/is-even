@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -10,7 +12,9 @@
 #include <string.h>
 #include <errno.h>
 #include <pthread.h>
+#include <string.h>
 
+#include "config.h"
 #include "queue.h"
 
 typedef int (*is_even_func_t)(unsigned int);
@@ -25,13 +29,14 @@ void *producer_thread(void *arg)
 {
     char fpath[64];
     char *assets_base = (char *)arg;
-    int i;
+    unsigned int i;
 
     for (i = 0; i <= UINT_MAX / 100000; ++i) {
         snprintf(fpath, 64, "%s/%02x/%02x/%02x/%06x", assets_base, (i>>24) & 0xFF, (i>>16) & 0xFF, (i>>8) & 0xFF, i);
         queue_put_item(queue, fpath);
     }
 
+    free(assets_base);
     return NULL;
 }
 
@@ -96,7 +101,7 @@ void start(char const *assets_base, int opt_number)
         nproc = 1;
     }
 
-    pthread_create(&tids[tid_idx++], NULL, producer_thread, (void *)assets_base);
+    pthread_create(&tids[tid_idx++], NULL, producer_thread, (void *)strdup(assets_base));
     for (i = 0; i < nproc; ++i, ++tid_idx) {
         pthread_create(&tids[tid_idx], NULL, consumer_thread, (void *)&opt_number);
     }
@@ -127,7 +132,7 @@ int main(int argc, char *argv[])
 
     assets_base = getenv("ISEVEN_ASSETS");
     if (assets_base == NULL) {
-        assets_base = "outdir";
+        assets_base = DEFAULT_ASSETS_PATH;
     }
 
     if ((status = queue_create(64, &queue)) != 0) {

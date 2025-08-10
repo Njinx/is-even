@@ -113,7 +113,7 @@ void _queue_put_item(queue_t *q, char *item)
     ++(q->i);
 }
 
-char *queue_free_item(char *item)
+void queue_free_item(char *item)
 {
     free(item);
 }
