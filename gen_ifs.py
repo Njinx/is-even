@@ -50,24 +50,27 @@ def gen_names(chunk: int) -> tuple[str, str]:
 
 
 def job_worker(out_base: str) -> None:
-    chunks = math.floor(2**32 / 100_000)
-    start = 0
-    end = 100_000
+    try:
+        chunks = math.floor(2**32 / 100_000)
+        start = 0
+        end = 100_000
 
-    def queue_chunk_job(chunk: int) -> None:
-        dir_name, file_name = gen_names(chunk)
-        job_queue.put((start, end, os.path.join(out_base, dir_name), file_name))
+        def queue_chunk_job(chunk: int) -> None:
+            dir_name, file_name = gen_names(chunk)
+            job_queue.put((start, end, os.path.join(out_base, dir_name), file_name))
 
-    i = 0
-    for i in range(chunks):
-        queue_chunk_job(i)
-        start = end
-        if i < chunks-1:
-            end += 100_000
-        else:
-            end += 2**32 % 100_000
+        i = 0
+        for i in range(chunks):
+            queue_chunk_job(i)
+            start = end
+            if i < chunks-1:
+                end += 100_000
+            else:
+                end += 2**32 % 100_000
 
-    queue_chunk_job(i+1)
+        queue_chunk_job(i+1)
+    except KeyboardInterrupt:
+        pass
 
 
 def make_binary_tmpl(cnt: int) -> bytes | None:
