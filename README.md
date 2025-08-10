@@ -2,6 +2,11 @@
 
 > Determining evenness — reimagined for web3
 
+<div align="center">
+<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"><img alt="Pipeline Status" src="https://gitlab.com/Njinx/is-even/badges/main/pipeline.svg"/></a>
+<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"><img alt="Coverage Report" src="https://gitlab.com/Njinx/is-even/badges/main/coverage.svg"/></a>
+</div>
+
 ---
 
 ## ⚡️ Overview
